@@ -43,7 +43,7 @@
                             <label class="form-label">Status</label>
                             <select name="status" class="form-select">
                                 <option value="">All</option>
-                                <option value="new" {% if current_filters.status == 'new' %}selected{% endif %}>New</option>
+                                <option value="open" {% if current_filters.status == 'open' %}selected{% endif %}>Open</option>
                                 <option value="investigating" {% if current_filters.status == 'investigating' %}selected{% endif %}>Investigating</option>
                                 <option value="resolved" {% if current_filters.status == 'resolved' %}selected{% endif %}>Resolved</option>
                                 <option value="false_positive" {% if current_filters.status == 'false_positive' %}selected{% endif %}>False Positive</option>
