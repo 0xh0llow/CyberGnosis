@@ -34,6 +34,26 @@ session.headers.update({
 })
 
 
+def api_get(path: str, params=None, timeout: int = 10):
+    """Centralized GET wrapper with consistent payload extraction."""
+    response = session.get(f'{API_URL}{path}', params=params, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
+def _extract_alerts(payload):
+    if isinstance(payload, dict) and 'alerts' in payload:
+        return payload['alerts']
+    return payload if isinstance(payload, list) else []
+
+
+def normalize_alert_status(status: str) -> str:
+    """Map UI legacy statuses to backend statuses."""
+    if status == "new":
+        return "open"
+    return status
+
+
 def handle_api_error(f):
     """Decorator to handle API errors gracefully"""
     @wraps(f)
@@ -52,32 +72,17 @@ def handle_api_error(f):
 def index():
     """Dashboard overview page"""
     # Get system statistics
-    stats_response = session.get(f'{API_URL}/api/stats', timeout=10)
-    stats_response.raise_for_status()
-    stats = stats_response.json()
+    stats = api_get('/api/stats')
     
     # Get recent alerts
-    alerts_response = session.get(
-        f'{API_URL}/api/alerts',
-        params={'limit': 10, 'status': 'new'},
-        timeout=10
-    )
-    alerts_response.raise_for_status()
-    alerts = alerts_response.json()
+    alerts_payload = api_get('/api/alerts', params={'limit': 10, 'status': 'open'})
+    alerts = _extract_alerts(alerts_payload)
     
     # Get hosts status
-    hosts_response = session.get(f'{API_URL}/api/hosts', timeout=10)
-    hosts_response.raise_for_status()
-    hosts = hosts_response.json()
+    hosts = api_get('/api/hosts')
     
     # Get recent metrics for charts
-    metrics_response = session.get(
-        f'{API_URL}/api/metrics',
-        params={'limit': 50},
-        timeout=10
-    )
-    metrics_response.raise_for_status()
-    metrics = metrics_response.json()
+    metrics = api_get('/api/metrics', params={'limit': 50})
     
     return render_template(
         'overview.html',
@@ -105,18 +110,15 @@ def alerts_list():
     if alert_type:
         params['alert_type'] = alert_type
     if status:
-        params['status'] = status
+        params['status'] = normalize_alert_status(status)
     if host_id:
         params['host_id'] = host_id
     
     # Get alerts
-    response = session.get(f'{API_URL}/api/alerts', params=params, timeout=10)
-    response.raise_for_status()
-    alerts = response.json()
+    alerts = _extract_alerts(api_get('/api/alerts', params=params))
     
     # Get unique values for filters
-    hosts_response = session.get(f'{API_URL}/api/hosts', timeout=10)
-    hosts = hosts_response.json()
+    hosts = api_get('/api/hosts')
     
     return render_template(
         'alerts.html',
@@ -136,18 +138,12 @@ def alerts_list():
 def alert_detail(alert_id):
     """Alert detail page with investigation tools"""
     # Get alert details
-    response = session.get(f'{API_URL}/api/alerts/{alert_id}', timeout=10)
-    response.raise_for_status()
-    alert = response.json()
+    alert = api_get(f'/api/alerts/{alert_id}')
     
     # Get host details
     if alert.get('host_id'):
-        host_response = session.get(
-            f'{API_URL}/api/hosts',
-            params={'host_id': alert['host_id']},
-            timeout=10
-        )
-        host = host_response.json()[0] if host_response.json() else None
+        host_list = api_get('/api/hosts', params={'host_id': alert['host_id']})
+        host = host_list[0] if host_list else None
     else:
         host = None
     
@@ -158,16 +154,7 @@ def alert_detail(alert_id):
         start_time = alert_time - timedelta(hours=1)
         end_time = alert_time + timedelta(minutes=30)
         
-        metrics_response = session.get(
-            f'{API_URL}/api/metrics',
-            params={
-                'host_id': alert['host_id'],
-                'start_time': start_time.isoformat(),
-                'end_time': end_time.isoformat()
-            },
-            timeout=10
-        )
-        metrics = metrics_response.json() if metrics_response.ok else []
+        metrics = api_get('/api/metrics', params={'host_id': alert['host_id'], 'limit': 100})
     
     return render_template(
         'alert_detail.html',
@@ -189,7 +176,7 @@ def update_alert(alert_id):
         return redirect(url_for('alert_detail', alert_id=alert_id))
     
     # Update alert
-    update_data = {'status': status}
+    update_data = {'status': normalize_alert_status(status)}
     if notes:
         update_data['resolution_notes'] = notes
     
@@ -231,22 +218,12 @@ def search_similar_alerts():
 @handle_api_error
 def hosts_list():
     """Hosts list page"""
-    response = session.get(f'{API_URL}/api/hosts', timeout=10)
-    response.raise_for_status()
-    hosts = response.json()
+    hosts = api_get('/api/hosts')
     
     # Enrich with recent alert counts
     for host in hosts:
-        alerts_response = session.get(
-            f'{API_URL}/api/alerts',
-            params={
-                'host_id': host['host_id'],
-                'limit': 100,
-                'start_time': (datetime.now() - timedelta(days=7)).isoformat()
-            },
-            timeout=10
-        )
-        host['recent_alerts'] = len(alerts_response.json())
+        host_alerts_payload = api_get('/api/alerts', params={'host_id': host['host_id'], 'limit': 100})
+        host['recent_alerts'] = len(_extract_alerts(host_alerts_payload))
     
     return render_template('hosts.html', hosts=hosts)
 
@@ -256,12 +233,7 @@ def hosts_list():
 def host_detail(host_id):
     """Host detail page with metrics and alerts"""
     # Get host info
-    hosts_response = session.get(
-        f'{API_URL}/api/hosts',
-        params={'host_id': host_id},
-        timeout=10
-    )
-    hosts = hosts_response.json()
+    hosts = api_get('/api/hosts', params={'host_id': host_id})
     host = hosts[0] if hosts else None
     
     if not host:
@@ -269,26 +241,10 @@ def host_detail(host_id):
         return redirect(url_for('hosts_list'))
     
     # Get recent metrics
-    metrics_response = session.get(
-        f'{API_URL}/api/metrics',
-        params={
-            'host_id': host_id,
-            'limit': 100
-        },
-        timeout=10
-    )
-    metrics = metrics_response.json()
+    metrics = api_get('/api/metrics', params={'host_id': host_id, 'limit': 100})
     
     # Get alerts
-    alerts_response = session.get(
-        f'{API_URL}/api/alerts',
-        params={
-            'host_id': host_id,
-            'limit': 50
-        },
-        timeout=10
-    )
-    alerts = alerts_response.json()
+    alerts = _extract_alerts(api_get('/api/alerts', params={'host_id': host_id, 'limit': 50}))
     
     return render_template(
         'host_detail.html',
@@ -308,12 +264,7 @@ def search():
         return render_template('search.html', query=query, results=None)
     
     # Search alerts by text
-    alerts_response = session.get(
-        f'{API_URL}/api/alerts',
-        params={'limit': 100},
-        timeout=10
-    )
-    all_alerts = alerts_response.json()
+    all_alerts = _extract_alerts(api_get('/api/alerts', params={'limit': 100}))
     
     # Simple text search (can be enhanced with vector search)
     results = {
@@ -328,9 +279,34 @@ def search():
 
 
 @app.route('/reports')
+@handle_api_error
 def reports():
-    """Reports page placeholder"""
-    return render_template('reports.html')
+    """Reports page with real weekly/monthly aggregates."""
+    stats = api_get('/api/stats')
+    weekly_alerts = _extract_alerts(api_get('/api/alerts', params={'limit': 500}))
+    now = datetime.utcnow()
+    week_cutoff = now - timedelta(days=7)
+    month_cutoff = now - timedelta(days=30)
+
+    weekly = [a for a in weekly_alerts if datetime.fromisoformat(a["timestamp"].replace('Z', '+00:00')) >= week_cutoff]
+    monthly = [a for a in weekly_alerts if datetime.fromisoformat(a["timestamp"].replace('Z', '+00:00')) >= month_cutoff]
+
+    def _severity_dist(items):
+        result = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for item in items:
+            sev = item.get("severity", "low")
+            if sev in result:
+                result[sev] += 1
+        return result
+
+    return render_template(
+        'reports.html',
+        stats=stats,
+        weekly_count=len(weekly),
+        monthly_count=len(monthly),
+        weekly_severity=_severity_dist(weekly),
+        monthly_severity=_severity_dist(monthly),
+    )
 
 
 @app.route('/health')
@@ -394,13 +370,14 @@ def utility_processor():
     
     def status_badge(status):
         """Get Bootstrap badge class for status"""
+        normalized = normalize_alert_status(status)
         badges = {
-            'new': 'warning',
+            'open': 'warning',
             'investigating': 'info',
             'resolved': 'success',
             'false_positive': 'secondary'
         }
-        return badges.get(status, 'secondary')
+        return badges.get(normalized, 'secondary')
     
     return dict(
         format_timestamp=format_timestamp,

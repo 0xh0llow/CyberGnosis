@@ -36,13 +36,24 @@ def create_metric(
 def get_metrics(
     db: Session,
     host_id: Optional[str] = None,
-    limit: int = 100
+    limit: int = 100,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
 ) -> List[models.Metric]:
     """Ottiene metriche con filtri opzionali."""
     query = db.query(models.Metric)
     
     if host_id:
         query = query.filter(models.Metric.host_id == host_id)
+
+    if start_time:
+        query = query.filter(
+            models.Metric.timestamp >= datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        )
+    if end_time:
+        query = query.filter(
+            models.Metric.timestamp <= datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        )
     
     return query.order_by(models.Metric.timestamp.desc()).limit(limit).all()
 
@@ -68,7 +79,7 @@ def create_alert(
         severity=severity,
         title=title,
         description=description,
-        metadata=metadata,
+        alert_metadata=metadata,
         timestamp=datetime.fromisoformat(timestamp.replace('Z', '+00:00')),
         status='open'
     )
@@ -81,6 +92,7 @@ def create_alert(
 def get_alerts(
     db: Session,
     host_id: Optional[str] = None,
+    alert_type: Optional[str] = None,
     severity: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100
@@ -90,6 +102,9 @@ def get_alerts(
     
     if host_id:
         query = query.filter(models.Alert.host_id == host_id)
+
+    if alert_type:
+        query = query.filter(models.Alert.alert_type == alert_type)
     
     if severity:
         query = query.filter(models.Alert.severity == severity)
@@ -108,12 +123,30 @@ def get_alerts(
             "severity": alert.severity,
             "title": alert.title,
             "description": alert.description,
-            "metadata": alert.metadata,
+            "metadata": alert.alert_metadata or {},
             "status": alert.status,
             "timestamp": alert.timestamp.isoformat()
         }
         for alert in alerts
     ]
+
+
+def get_alert_by_id(db: Session, alert_id: int) -> Optional[Dict[str, Any]]:
+    """Ottiene singolo alert per ID."""
+    alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+    if not alert:
+        return None
+    return {
+        "id": alert.id,
+        "host_id": alert.host_id,
+        "alert_type": alert.alert_type,
+        "severity": alert.severity,
+        "title": alert.title,
+        "description": alert.description,
+        "metadata": alert.alert_metadata or {},
+        "status": alert.status,
+        "timestamp": alert.timestamp.isoformat(),
+    }
 
 
 def update_alert_status(
@@ -167,7 +200,7 @@ def get_code_snippets(
     host_id: Optional[str] = None,
     severity: Optional[str] = None,
     limit: int = 100
-) -> List[models.CodeSnippet]:
+) -> List[Dict[str, Any]]:
     """Ottiene code snippets."""
     query = db.query(models.CodeSnippet)
     
@@ -177,7 +210,20 @@ def get_code_snippets(
     if severity:
         query = query.filter(models.CodeSnippet.severity == severity)
     
-    return query.order_by(models.CodeSnippet.timestamp.desc()).limit(limit).all()
+    snippets = query.order_by(models.CodeSnippet.timestamp.desc()).limit(limit).all()
+    return [
+        {
+            "id": snippet.id,
+            "host_id": snippet.host_id,
+            "code_snippet": snippet.code_snippet,
+            "vulnerability_type": snippet.vulnerability_type,
+            "severity": snippet.severity,
+            "file_path_hash": snippet.file_path_hash,
+            "line_number": snippet.line_number,
+            "timestamp": snippet.timestamp.isoformat(),
+        }
+        for snippet in snippets
+    ]
 
 
 # ============================================
@@ -217,6 +263,26 @@ def get_active_hosts(db: Session) -> List[models.Host]:
     return db.query(models.Host).filter(models.Host.is_active == True).all()
 
 
+def get_hosts(db: Session, host_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Ottiene host attivi o specifico host."""
+    query = db.query(models.Host)
+    if host_id:
+        query = query.filter(models.Host.host_id == host_id)
+    hosts = query.order_by(models.Host.last_seen.desc().nullslast()).all()
+    return [
+        {
+            "id": host.id,
+            "host_id": host.host_id,
+            "hostname": host.hostname,
+            "os_info": host.os_info,
+            "is_active": host.is_active,
+            "last_seen": host.last_seen.isoformat() if host.last_seen else None,
+            "registered_at": host.registered_at.isoformat() if host.registered_at else None,
+        }
+        for host in hosts
+    ]
+
+
 # ============================================
 # STATISTICS
 # ============================================
@@ -240,5 +306,11 @@ def get_system_stats(db: Session) -> Dict[str, Any]:
         "open_alerts": open_alerts,
         "critical_alerts": critical_alerts,
         "high_alerts": high_alerts,
-        "active_hosts": active_hosts
+        "active_hosts": active_hosts,
+        "alerts_by_severity": {
+            "critical": critical_alerts,
+            "high": high_alerts,
+            "medium": db.query(models.Alert).filter(models.Alert.severity == 'medium').count(),
+            "low": db.query(models.Alert).filter(models.Alert.severity == 'low').count(),
+        }
     }
