@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+import numpy as np
 
 # Aggiungi root project al PYTHONPATH
 project_root = Path(__file__).parent.parent
@@ -134,6 +135,24 @@ def mock_vector_db():
             self.documents = []
     
     return MockVectorDB()
+
+
+@pytest.fixture
+def trained_detector():
+    """Detector anomaly già addestrato per test unit."""
+    from agents.performance.anomaly_detector import PerformanceAnomalyDetector
+
+    detector = PerformanceAnomalyDetector(contamination=0.1)
+    training_data = [
+        {
+            "cpu_percent": np.random.uniform(20, 50),
+            "memory_percent": np.random.uniform(30, 60),
+            "disk_percent": np.random.uniform(40, 70),
+        }
+        for _ in range(120)
+    ]
+    detector.train(training_data)
+    return detector
 
 
 # Markers personalizzati

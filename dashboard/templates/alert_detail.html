@@ -96,7 +96,7 @@
                     <div class="mb-3">
                         <label class="form-label">Update Status</label>
                         <select name="status" class="form-select">
-                            <option value="new" {% if alert.status == 'new' %}selected{% endif %}>New</option>
+                            <option value="open" {% if alert.status == 'open' %}selected{% endif %}>Open</option>
                             <option value="investigating" {% if alert.status == 'investigating' %}selected{% endif %}>Investigating</option>
                             <option value="resolved" {% if alert.status == 'resolved' %}selected{% endif %}>Resolved</option>
                             <option value="false_positive" {% if alert.status == 'false_positive' %}selected{% endif %}>False Positive</option>
@@ -200,10 +200,10 @@ function findSimilarAlerts() {
                 html += `
                     <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">${metadata.title || 'N/A'}</h6>
+                            <h6 class="mb-1">${metadata.alert_type || 'Alert'}</h6>
                             <small class="text-muted">Similarity: ${((1 - result.distance) * 100).toFixed(1)}%</small>
                         </div>
-                        <p class="mb-1">${result.content || metadata.description || ''}</p>
+                        <p class="mb-1">${result.text || metadata.description || ''}</p>
                         <small class="text-muted">
                             ${metadata.timestamp ? 'Date: ' + metadata.timestamp : ''} | 
                             Severity: <span class="badge bg-${getSeverityColor(metadata.severity)}">${metadata.severity || 'N/A'}</span>
@@ -237,7 +237,7 @@ function getSeverityColor(severity) {
 const metricsData = {{ metrics | tojson }};
 const labels = metricsData.map(m => new Date(m.timestamp).toLocaleTimeString());
 const cpuData = metricsData.map(m => m.metrics.cpu_percent || 0);
-const memoryData = metricsData.map(m => m.metrics.memory_percent || 0);
+const memoryData = metricsData.map(m => m.metrics.memory_percent || m.metrics.ram_percent || 0);
 
 const ctx = document.getElementById('metricsChart').getContext('2d');
 new Chart(ctx, {

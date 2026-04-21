@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: soc-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-securityuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_db_password}
+      POSTGRES_DB: ${POSTGRES_DB:-security_monitoring}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./central_server/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securityuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - soc_net
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: soc-chroma
+    environment:
+      ANONYMIZED_TELEMETRY: "False"
+      ALLOW_RESET: "True"
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "${CHROMA_PUBLIC_PORT:-8001}:8000"
+    restart: unless-stopped
+    networks:
+      - soc_net
+
+  central_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.central_server
+    container_name: soc-central-server
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-securityuser}:${POSTGRES_PASSWORD:-changeme_db_password}@postgres:5432/${POSTGRES_DB:-security_monitoring}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      API_SECRET_KEY: ${API_SECRET_KEY:-changeme_api_secret_key_min_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-changeme_jwt_secret_min_32_chars}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8443}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+    ports:
+      - "${API_PUBLIC_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    volumes:
+      - ./central_server:/app/central_server
+      - server_logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - soc_net
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: soc-dashboard
+    environment:
+      CENTRAL_SERVER_URL: http://central_server:8000
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-change-me-dashboard-secret}
+      FLASK_ENV: production
+    depends_on:
+      - central_server
+    ports:
+      - "${DASHBOARD_HTTP_PORT:-8081}:80"
+      - "${DASHBOARD_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./dashboard:/app/dashboard
+      - ./certs:/app/certs:ro
+    restart: unless-stopped
+    networks:
+      - soc_net
+
+volumes:
+  postgres_data:
+  chroma_data:
+  server_logs:
+
+networks:
+  soc_net:
+    driver: bridge
