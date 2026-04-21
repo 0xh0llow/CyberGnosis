@@ -15,7 +15,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securityuser} -d ${POSTGRES_DB:-security_monitoring}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securityuser}"]
       interval: 10s
       timeout: 5s
       retries: 5
