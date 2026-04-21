@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: security-postgres
+    environment:
+      POSTGRES_USER: securityuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_db_password}
+      POSTGRES_DB: security_monitoring
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./central_server/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - security_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securityuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Chroma Vector Database
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: security-chroma
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+      - ALLOW_RESET=True
+    ports:
+      - "8001:8000"
+    networks:
+      - security_net
+    restart: unless-stopped
+
+  # Central Server (FastAPI Backend)
+  central_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.central_server
+    container_name: security-central-server
+    environment:
+      # Database
+      DATABASE_URL: postgresql://securityuser:${DB_PASSWORD:-changeme_db_password}@postgres:5432/security_monitoring
+      
+      # Vector DB
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      
+      # Security
+      API_SECRET_KEY: ${API_SECRET_KEY:-changeme_api_secret_key_min_32_chars}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}  # Generated with cryptography.fernet
+      JWT_SECRET: ${JWT_SECRET:-changeme_jwt_secret_min_32_chars}
+      
+      # CORS (for dashboard)
+      ALLOWED_ORIGINS: "https://localhost:8443,https://dashboard:443"
+      
+      # Logging
+      LOG_LEVEL: INFO
+      
+    volumes:
+      - ./central_server:/app/central_server
+      - ./config:/app/config
+      - server_logs:/app/logs
+      - ./certs:/app/certs:ro  # SSL certificates (read-only)
+    ports:
+      - "8000:8000"
+    networks:
+      - security_net
+    depends_on:
+      - postgres
+      - chroma
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Dashboard (Web Frontend)
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: security-dashboard
+    environment:
+      CENTRAL_SERVER_URL: http://central_server:8000
+      FLASK_ENV: production
+      SECRET_KEY: ${DASHBOARD_SECRET_KEY:-changeme_dashboard_secret}
+    volumes:
+      - ./dashboard:/app/dashboard
+      - ./certs:/app/certs:ro
+    ports:
+      - "8443:443"  # HTTPS
+      - "8081:80"   # HTTP (redirect to HTTPS)
+    networks:
+      - security_net
+    depends_on:
+      - central_server
+    restart: unless-stopped
+
+  # Agent Performance Monitor (Example - deploy on monitored hosts)
+  # Uncomment to test locally
+  # agent_performance:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.agent
+  #   container_name: security-agent-performance
+  #   environment:
+  #     CENTRAL_SERVER_URL: https://central_server:8000
+  #     API_TOKEN: ${AGENT_API_TOKEN}
+  #     AGENT_TYPE: performance
+  #     HOST_ID: ${HOSTNAME:-test-host-001}
+  #   volumes:
+  #     - ./agents:/app/agents
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #   network_mode: host  # Required for accurate network monitoring
+  #   privileged: true    # Required for system monitoring (use with caution)
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  chroma_data:
+    driver: local
+  server_logs:
+    driver: local
+
+networks:
+  security_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

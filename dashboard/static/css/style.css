@@ -1,0 +1,176 @@
+/* Custom styles for SOC Dashboard */
+
+:root {
+    --severity-critical: #dc3545;
+    --severity-high: #fd7e14;
+    --severity-medium: #ffc107;
+    --severity-low: #6c757d;
+    --status-new: #ffc107;
+    --status-investigating: #0dcaf0;
+    --status-resolved: #198754;
+}
+
+body {
+    background-color: #f8f9fa;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.25rem;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 2px solid #f8f9fa;
+    font-weight: 600;
+}
+
+/* Severity colors */
+.severity-critical {
+    color: var(--severity-critical);
+    font-weight: bold;
+}
+
+.severity-high {
+    color: var(--severity-high);
+    font-weight: bold;
+}
+
+.severity-medium {
+    color: var(--severity-medium);
+}
+
+.severity-low {
+    color: var(--severity-low);
+}
+
+/* Status badges */
+.status-new {
+    background-color: var(--status-new) !important;
+}
+
+.status-investigating {
+    background-color: var(--status-investigating) !important;
+}
+
+.status-resolved {
+    background-color: var(--status-resolved) !important;
+}
+
+/* Alert row highlighting */
+.alert-row-critical {
+    border-left: 4px solid var(--severity-critical);
+}
+
+.alert-row-high {
+    border-left: 4px solid var(--severity-high);
+}
+
+.alert-row-medium {
+    border-left: 4px solid var(--severity-medium);
+}
+
+.alert-row-low {
+    border-left: 4px solid var(--severity-low);
+}
+
+/* Table improvements */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Loading spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Code blocks */
+code {
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 87.5%;
+}
+
+pre code {
+    display: block;
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+}
+
+/* Charts */
+canvas {
+    max-height: 400px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1rem;
+    }
+}
+
+/* Animation for new alerts */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+.alert-new.alert-critical {
+    animation: pulse 2s infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

@@ -1,0 +1,26 @@
+# Dockerfile for Agents
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies (per network monitoring)
+RUN apt-get update && apt-get install -y \
+    tcpdump \
+    net-tools \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY agents/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy agent code
+COPY agents/ /app/agents/
+
+# Create data directory
+RUN mkdir -p /app/agents/performance/data
+
+WORKDIR /app/agents
+
+# Default: run performance agent
+CMD ["python", "performance/run_agent.py"]

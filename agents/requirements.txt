@@ -1,0 +1,59 @@
+# ============================================
+# AGENTS - Common Dependencies
+# ============================================
+# System monitoring
+psutil>=5.9.0
+py-cpuinfo>=9.0.0
+
+# Network analysis
+scapy>=2.5.0
+
+# HTTP client
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# Cryptography & Security
+cryptography>=41.0.0
+pycryptodome>=3.18.0
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Logging
+python-json-logger>=2.0.7
+
+# ============================================
+# MALWARE DETECTION
+# ============================================
+# YARA rules (optional)
+yara-python>=4.3.1
+
+# File analysis
+python-magic>=0.4.27
+pefile>=2023.2.7  # For Windows PE files (optional)
+
+# ============================================
+# CODE SCANNING
+# ============================================
+bandit>=1.7.5
+semgrep>=1.45.0
+
+# ============================================
+# IDS - Intrusion Detection
+# ============================================
+# Log parsing
+python-dateutil>=2.8.2
+
+# ============================================
+# Utils
+# ============================================
+schedule>=1.2.0  # For periodic tasks

@@ -1,0 +1,21 @@
+# ============================================
+# DASHBOARD - Frontend Dependencies
+# ============================================
+Flask>=3.0.0
+flask-cors>=4.0.0
+Flask-WTF>=1.2.0
+
+# HTTP client
+requests>=2.31.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Security
+cryptography>=41.0.0
+
+# Logging
+python-json-logger>=2.0.7
+
+# Gunicorn for production
+gunicorn>=21.2.0

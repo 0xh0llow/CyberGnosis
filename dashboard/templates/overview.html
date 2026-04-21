@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Overview - SOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-speedometer2"></i> System Overview</h2>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-uppercase">Critical Alerts</h6>
+                        <h2 class="mb-0">{{ stats.get('alerts_by_severity', {}).get('critical', 0) }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-exclamation-octagon-fill" style="font-size: 3rem; opacity: 0.3;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-uppercase">High Alerts</h6>
+                        <h2 class="mb-0">{{ stats.get('alerts_by_severity', {}).get('high', 0) }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem; opacity: 0.3;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-uppercase">Active Hosts</h6>
+                        <h2 class="mb-0">{{ hosts|length }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-hdd-network-fill" style="font-size: 3rem; opacity: 0.3;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-uppercase">Total Metrics</h6>
+                        <h2 class="mb-0">{{ stats.get('total_metrics', 0) }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-graph-up" style="font-size: 3rem; opacity: 0.3;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Alerts -->
+    <div class="col-md-8 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-bell-fill"></i> Recent Alerts</h5>
+                <a href="{{ url_for('alerts_list') }}" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                {% if alerts %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Host</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Title</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in alerts %}
+                            <tr>
+                                <td>{{ format_timestamp(alert.timestamp) }}</td>
+                                <td><code>{{ alert.host_id }}</code></td>
+                                <td><span class="badge bg-secondary">{{ alert.alert_type }}</span></td>
+                                <td><span class="badge bg-{{ severity_color(alert.severity) }}">{{ alert.severity }}</span></td>
+                                <td>{{ alert.title }}</td>
+                                <td>
+                                    <a href="{{ url_for('alert_detail', alert_id=alert.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                    <p class="mt-3 text-muted">No recent alerts. System is healthy.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hosts Status -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-hdd-network"></i> Hosts Status</h5>
+            </div>
+            <div class="card-body">
+                {% if hosts %}
+                <ul class="list-group list-group-flush">
+                    {% for host in hosts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ host.host_id }}</strong>
+                            <br>
+                            <small class="text-muted">Last seen: {{ format_timestamp(host.last_seen) }}</small>
+                        </div>
+                        <span class="badge bg-success rounded-pill">
+                            <i class="bi bi-check-circle"></i> Online
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center">No hosts registered</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Metrics Chart -->
+{% if metrics %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Performance Metrics</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="metricsChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if metrics %}
+<script>
+// Prepare data for Chart.js
+const metricsData = {{ metrics | tojson }};
+const labels = metricsData.map(m => new Date(m.timestamp).toLocaleTimeString());
+const cpuData = metricsData.map(m => m.metrics.cpu_percent || 0);
+const memoryData = metricsData.map(m => m.metrics.memory_percent || 0);
+
+// Create chart
+const ctx = document.getElementById('metricsChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'CPU %',
+                data: cpuData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                tension: 0.4
+            },
+            {
+                label: 'Memory %',
+                data: memoryData,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                tension: 0.4
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                    callback: function(value) {
+                        return value + '%';
+                    }
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            title: {
+                display: false
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

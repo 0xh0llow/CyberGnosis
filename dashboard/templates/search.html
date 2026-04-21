@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Search - SOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-search"></i> Search</h2>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('search') }}">
+                    <div class="input-group input-group-lg">
+                        <input type="text" name="q" class="form-control" placeholder="Search alerts, hosts..." value="{{ query }}">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if results %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Search Results for "{{ query }}"</h5>
+            </div>
+            <div class="card-body">
+                {% if results.alerts %}
+                <h6>Alerts ({{ results.alerts|length }})</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Host</th>
+                                <th>Severity</th>
+                                <th>Title</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in results.alerts %}
+                            <tr>
+                                <td>{{ format_timestamp(alert.timestamp) }}</td>
+                                <td><code>{{ alert.host_id }}</code></td>
+                                <td><span class="badge bg-{{ severity_color(alert.severity) }}">{{ alert.severity }}</span></td>
+                                <td>{{ alert.title }}</td>
+                                <td>
+                                    <a href="{{ url_for('alert_detail', alert_id=alert.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-5">No results found for "{{ query }}"</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

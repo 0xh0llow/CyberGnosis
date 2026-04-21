@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Alert #{{ alert.id }} - SOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('alerts_list') }}">Alerts</a></li>
+                <li class="breadcrumb-item active">Alert #{{ alert.id }}</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-exclamation-triangle-fill"></i> Alert Details</h2>
+    </div>
+</div>
+
+<!-- Alert Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Alert Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Alert ID:</strong> <code>#{{ alert.id }}</code>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Timestamp:</strong> {{ format_timestamp(alert.timestamp) }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Host:</strong> <code>{{ alert.host_id }}</code>
+                        {% if host %}
+                        <a href="{{ url_for('host_detail', host_id=alert.host_id) }}" class="ms-2">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Type:</strong> <span class="badge bg-secondary">{{ alert.alert_type }}</span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Severity:</strong> <span class="badge bg-{{ severity_color(alert.severity) }}">{{ alert.severity }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Status:</strong> <span class="badge bg-{{ status_badge(alert.status) }}">{{ alert.status }}</span>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="mb-3">
+                    <strong>Title:</strong>
+                    <p>{{ alert.title }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Description:</strong>
+                    <p>{{ alert.description }}</p>
+                </div>
+                
+                {% if alert.metadata %}
+                <div class="mb-3">
+                    <strong>Additional Metadata:</strong>
+                    <pre class="bg-light p-3 rounded"><code>{{ alert.metadata | tojson(indent=2) }}</code></pre>
+                </div>
+                {% endif %}
+                
+                {% if alert.resolution_notes %}
+                <div class="alert alert-info">
+                    <strong><i class="bi bi-info-circle"></i> Resolution Notes:</strong>
+                    <p class="mb-0 mt-2">{{ alert.resolution_notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions Panel -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-tools"></i> Actions</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('update_alert', alert_id=alert.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Update Status</label>
+                        <select name="status" class="form-select">
+                            <option value="new" {% if alert.status == 'new' %}selected{% endif %}>New</option>
+                            <option value="investigating" {% if alert.status == 'investigating' %}selected{% endif %}>Investigating</option>
+                            <option value="resolved" {% if alert.status == 'resolved' %}selected{% endif %}>Resolved</option>
+                            <option value="false_positive" {% if alert.status == 'false_positive' %}selected{% endif %}>False Positive</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Resolution Notes</label>
+                        <textarea name="notes" class="form-control" rows="4" placeholder="Add investigation notes...">{{ alert.resolution_notes or '' }}</textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-save"></i> Update Alert
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-search"></i> Investigation Tools</h6>
+            </div>
+            <div class="card-body">
+                <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="findSimilarAlerts()">
+                    <i class="bi bi-diagram-3"></i> Find Similar Alerts
+                </button>
+                
+                {% if host %}
+                <a href="{{ url_for('host_detail', host_id=alert.host_id) }}" class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="bi bi-hdd-network"></i> View Host Details
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Similar Alerts Results -->
+<div class="row mb-4" id="similarAlertsSection" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Similar Historical Alerts</h5>
+            </div>
+            <div class="card-body">
+                <div id="similarAlertsResults">
+                    <div class="text-center py-3">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Metrics Timeline -->
+{% if metrics %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Metrics Timeline (1 hour before alert)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="metricsChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function findSimilarAlerts() {
+    const section = document.getElementById('similarAlertsSection');
+    const resultsDiv = document.getElementById('similarAlertsResults');
+    
+    section.style.display = 'block';
+    resultsDiv.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"></div></div>';
+    
+    // Call API
+    fetch('{{ url_for("search_similar_alerts") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            query: '{{ alert.description | safe }}',
+            top_k: 5
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.results && data.results.length > 0) {
+            let html = '<div class="list-group">';
+            data.results.forEach(result => {
+                const metadata = result.metadata || {};
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${metadata.title || 'N/A'}</h6>
+                            <small class="text-muted">Similarity: ${((1 - result.distance) * 100).toFixed(1)}%</small>
+                        </div>
+                        <p class="mb-1">${result.content || metadata.description || ''}</p>
+                        <small class="text-muted">
+                            ${metadata.timestamp ? 'Date: ' + metadata.timestamp : ''} | 
+                            Severity: <span class="badge bg-${getSeverityColor(metadata.severity)}">${metadata.severity || 'N/A'}</span>
+                        </small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        } else {
+            resultsDiv.innerHTML = '<p class="text-muted text-center">No similar alerts found.</p>';
+        }
+    })
+    .catch(error => {
+        resultsDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    });
+}
+
+function getSeverityColor(severity) {
+    const colors = {
+        'critical': 'danger',
+        'high': 'warning',
+        'medium': 'info',
+        'low': 'secondary'
+    };
+    return colors[severity] || 'secondary';
+}
+
+{% if metrics %}
+// Metrics chart
+const metricsData = {{ metrics | tojson }};
+const labels = metricsData.map(m => new Date(m.timestamp).toLocaleTimeString());
+const cpuData = metricsData.map(m => m.metrics.cpu_percent || 0);
+const memoryData = metricsData.map(m => m.metrics.memory_percent || 0);
+
+const ctx = document.getElementById('metricsChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'CPU %',
+                data: cpuData,
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.4
+            },
+            {
+                label: 'Memory %',
+                data: memoryData,
+                borderColor: 'rgb(54, 162, 235)',
+                tension: 0.4
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}
