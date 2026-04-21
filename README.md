@@ -135,6 +135,69 @@ Al termine, lo studente sarà in grado di:
 
 ## 🚀 Quick Start
 
+### 🧪 Demo distribuita (server remoto + client)
+
+Per una demo realistica su più macchine:
+
+1. **Macchina server remota** (PostgreSQL + Chroma + API + Dashboard):  
+   usa `docker-compose.server.yml`.
+2. **Macchine client** (agent):  
+   usa `docker-compose.client.yml`.
+
+Esempio rapido:
+
+```bash
+# SERVER (macchina remota)
+cp .env.server.example .env.server
+docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
+
+# CLIENT (ogni host monitorato)
+cp .env.client.example .env.client
+docker compose -f docker-compose.client.yml --env-file .env.client up -d
+
+# Scan codice on-demand dal client
+docker compose -f docker-compose.client.yml --env-file .env.client --profile scan run --rm code_scanner
+```
+
+#### Variabili da impostare (server)
+
+Minime obbligatorie in `.env.server`:
+- `API_TOKEN`: token condiviso usato da agent e dashboard.
+- `ENCRYPTION_KEY`: chiave Fernet valida.
+
+Raccomandate:
+- `POSTGRES_PASSWORD`, `API_SECRET_KEY`, `JWT_SECRET`, `FLASK_SECRET_KEY`.
+- Porte pubbliche (`API_PUBLIC_PORT`, `DASHBOARD_HTTP_PORT`, `DASHBOARD_HTTPS_PORT`).
+
+#### Variabili da impostare (client)
+
+Minime obbligatorie in `.env.client`:
+- `CENTRAL_SERVER_URL` (es. `http://<SERVER_IP>:8000`)
+- `API_TOKEN` (stesso valore del server)
+- `HOST_ID` (identificativo univoco del client)
+
+Opzionali per profili:
+- Code scanner: `SCAN_TARGET`, `SCAN_TARGET_HOST`
+- Malware: `MALWARE_SCAN_PATH`, `MALWARE_SCAN_INTERVAL`
+- IDS: `IDS_INTERVAL`, `IDS_LOG_FILE`, `IDS_LOG_FILE_HOST`
+
+#### Comandi passo-passo
+
+```bash
+# 1) SERVER REMOTO
+cp .env.server.example .env.server
+# modifica .env.server con token/segreti reali
+docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
+
+# 2) CLIENT - Avvio stack agent completo (performance + malware + ids)
+cp .env.client.example .env.client
+# modifica .env.client con CENTRAL_SERVER_URL/API_TOKEN/HOST_ID
+docker compose -f docker-compose.client.yml --env-file .env.client up -d
+
+# 3) CLIENT - Code scan on-demand
+docker compose -f docker-compose.client.yml --env-file .env.client --profile scan run --rm code_scanner
+```
+
 ### Prerequisiti
 
 ```bash

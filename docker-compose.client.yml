@@ -1,0 +1,108 @@
+version: "3.8"
+
+services:
+  performance_agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    container_name: soc-client-performance
+    command:
+      [
+        "python",
+        "performance/run_agent.py",
+        "--server-url",
+        "${CENTRAL_SERVER_URL:?set CENTRAL_SERVER_URL}",
+        "--api-token",
+        "${API_TOKEN:?set API_TOKEN}",
+        "--host-id",
+        "${HOST_ID:-client-host-001}",
+        "--interval",
+        "${COLLECTION_INTERVAL:-30}"
+      ]
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./agents:/app/agents
+      - ./client_data/performance:/app/agents/performance/data
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    restart: unless-stopped
+    network_mode: host
+
+  code_scanner:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    container_name: soc-client-code-scanner
+    command:
+      [
+        "python",
+        "code_scanner/scanner.py",
+        "--target",
+        "${SCAN_TARGET:-/workspace/to_scan}",
+        "--server-url",
+        "${CENTRAL_SERVER_URL:?set CENTRAL_SERVER_URL}",
+        "--api-token",
+        "${API_TOKEN:?set API_TOKEN}",
+        "--host-id",
+        "${HOST_ID:-client-host-001}"
+      ]
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./agents:/app/agents
+      - ${SCAN_TARGET_HOST:-./}:/workspace/to_scan:ro
+    restart: "no"
+    profiles: ["scan"]
+
+  malware_agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    container_name: soc-client-malware
+    command:
+      [
+        "python",
+        "malware/run_agent.py",
+        "--server-url",
+        "${CENTRAL_SERVER_URL:?set CENTRAL_SERVER_URL}",
+        "--api-token",
+        "${API_TOKEN:?set API_TOKEN}",
+        "--host-id",
+        "${HOST_ID:-client-host-001}",
+        "--scan-path",
+        "${MALWARE_SCAN_PATH:-/workspace/to_scan}",
+        "--scan-interval",
+        "${MALWARE_SCAN_INTERVAL:-300}"
+      ]
+    volumes:
+      - ./agents:/app/agents
+      - ${SCAN_TARGET_HOST:-./}:/workspace/to_scan:ro
+      - ./client_data/malware:/app/agents/data
+    restart: unless-stopped
+
+  ids_agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    container_name: soc-client-ids
+    command:
+      [
+        "python",
+        "ids/run_agent.py",
+        "--server-url",
+        "${CENTRAL_SERVER_URL:?set CENTRAL_SERVER_URL}",
+        "--api-token",
+        "${API_TOKEN:?set API_TOKEN}",
+        "--host-id",
+        "${HOST_ID:-client-host-001}",
+        "--interval",
+        "${IDS_INTERVAL:-30}",
+        "--log-file",
+        "${IDS_LOG_FILE:-/var/log/auth.log}"
+      ]
+    volumes:
+      - ./agents:/app/agents
+      - ${IDS_LOG_FILE_HOST:-/var/log/auth.log}:/var/log/auth.log:ro
+    network_mode: host
+    restart: unless-stopped

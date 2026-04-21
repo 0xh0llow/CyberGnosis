@@ -11,8 +11,12 @@
 }
 
 body {
-    background-color: #f8f9fa;
+    background: linear-gradient(180deg, #f5f7fb 0%, #eef3fb 100%);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.soc-navbar {
+    background: linear-gradient(90deg, #111827 0%, #1f2937 45%, #0b3b6e 100%);
 }
 
 .navbar-brand {
@@ -21,9 +25,10 @@ body {
 }
 
 .card {
-    border: none;
+    border: 1px solid rgba(15, 23, 42, 0.06);
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 12px;
 }
 
 .card:hover {
@@ -32,9 +37,17 @@ body {
 }
 
 .card-header {
-    background-color: #fff;
+    background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
     border-bottom: 2px solid #f8f9fa;
     font-weight: 600;
+}
+
+.table thead th {
+    background-color: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    font-size: 0.75rem;
 }
 
 /* Severity colors */

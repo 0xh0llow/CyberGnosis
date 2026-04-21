@@ -16,7 +16,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY central_server/ /app/central_server/
-COPY config/ /app/config/
+
+# Optional runtime config directory.
+# NOTE: Do not COPY ./config at build-time because in some environments
+# that folder is intentionally absent and build would fail.
+RUN mkdir -p /app/config
 
 # Create logs directory
 RUN mkdir -p /app/logs
