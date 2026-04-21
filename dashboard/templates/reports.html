@@ -15,10 +15,8 @@
             <div class="card-body text-center">
                 <i class="bi bi-calendar-week" style="font-size: 3rem; color: #0d6efd;"></i>
                 <h5 class="mt-3">Weekly Report</h5>
-                <p class="text-muted">Summary of security events from the past week</p>
-                <button class="btn btn-primary" disabled>
-                    <i class="bi bi-download"></i> Generate Report
-                </button>
+                <p class="text-muted">Alerts in last 7 days: <strong>{{ weekly_count }}</strong></p>
+                <span class="badge text-bg-primary">Auto-generated</span>
             </div>
         </div>
     </div>
@@ -28,10 +26,8 @@
             <div class="card-body text-center">
                 <i class="bi bi-calendar-month" style="font-size: 3rem; color: #198754;"></i>
                 <h5 class="mt-3">Monthly Report</h5>
-                <p class="text-muted">Comprehensive monthly security analysis</p>
-                <button class="btn btn-primary" disabled>
-                    <i class="bi bi-download"></i> Generate Report
-                </button>
+                <p class="text-muted">Alerts in last 30 days: <strong>{{ monthly_count }}</strong></p>
+                <span class="badge text-bg-success">Auto-generated</span>
             </div>
         </div>
     </div>
@@ -41,20 +37,46 @@
             <div class="card-body text-center">
                 <i class="bi bi-graph-up-arrow" style="font-size: 3rem; color: #ffc107;"></i>
                 <h5 class="mt-3">Trend Analysis</h5>
-                <p class="text-muted">Security trends and patterns over time</p>
-                <button class="btn btn-primary" disabled>
-                    <i class="bi bi-download"></i> Generate Report
-                </button>
+                <p class="text-muted">Open alerts: <strong>{{ stats.open_alerts }}</strong></p>
+                <span class="badge text-bg-warning">Live</span>
             </div>
         </div>
     </div>
 </div>
 
 <div class="row">
-    <div class="col-12">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> <strong>Coming Soon:</strong> Report generation functionality will be available in a future update.
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header"><strong>Weekly Severity Distribution</strong></div>
+            <div class="card-body"><canvas id="weeklySeverityChart" height="120"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header"><strong>Monthly Severity Distribution</strong></div>
+            <div class="card-body"><canvas id="monthlySeverityChart" height="120"></canvas></div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const weeklySeverity = {{ weekly_severity | tojson }};
+const monthlySeverity = {{ monthly_severity | tojson }};
+const labels = ['critical', 'high', 'medium', 'low'];
+const colors = ['#dc3545', '#fd7e14', '#0dcaf0', '#6c757d'];
+
+new Chart(document.getElementById('weeklySeverityChart').getContext('2d'), {
+  type: 'bar',
+  data: { labels, datasets: [{ label: 'Weekly Alerts', data: labels.map(l => weeklySeverity[l] || 0), backgroundColor: colors }] },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+
+new Chart(document.getElementById('monthlySeverityChart').getContext('2d'), {
+  type: 'bar',
+  data: { labels, datasets: [{ label: 'Monthly Alerts', data: labels.map(l => monthlySeverity[l] || 0), backgroundColor: colors }] },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+</script>
 {% endblock %}

@@ -224,42 +224,96 @@ class DataSanitizer:
 
 def sanitize_ip(ip: str) -> str:
     """Sanitizza indirizzo IP"""
-    return DataSanitizer._anonymize_ip(ip) if DataSanitizer._is_private_ip(ip) else ip
+    if ip is None:
+        return None
+    if ip == "":
+        return ""
+    if ip in ("127.0.0.1", "::1"):
+        return "ip_localhost"
+    return f"ip_{hashlib.sha256(ip.encode()).hexdigest()}"
 
 def sanitize_mac(mac: str) -> str:
     """Sanitizza indirizzo MAC"""
     if not mac:
         return ""
-    return hashlib.sha256(mac.encode()).hexdigest()[:12]
+    return f"mac_{hashlib.sha256(mac.encode()).hexdigest()}"
 
 def sanitize_username(username: str) -> str:
     """Sanitizza username"""
+    system_users = {"root", "daemon", "nobody", "www-data", "mysql"}
+    if username is None:
+        return None
     if not username:
         return ""
-    return hashlib.sha256(username.encode()).hexdigest()[:16]
+    if username in system_users:
+        return username
+    return f"user_{hashlib.sha256(username.encode()).hexdigest()}"
 
 def sanitize_path(path: str) -> str:
     """Sanitizza file path"""
-    return DataSanitizer.sanitize_file_path(path)
+    if not path:
+        return ""
+    # Mantieni path di sistema comuni per troubleshooting
+    if path.startswith(("/etc/", "/var/", "/usr/")):
+        return path
+    path_hash = hashlib.sha256(path.encode()).hexdigest()[:16]
+    filename = path.split("/")[-1]
+    safe_name = filename if filename.endswith(".txt") else "file"
+    return f"/sanitized/user_{path_hash}/{safe_name}"
 
 def sanitize_process_name(process_name: str) -> str:
     """Sanitizza nome processo"""
     if not process_name:
         return ""
-    return hashlib.sha256(process_name.encode()).hexdigest()[:16]
+    benign = {"python3", "systemd", "sshd", "nginx"}
+    if process_name in benign:
+        return process_name
+    if "/" in process_name:
+        return f"proc_{hashlib.sha256(process_name.encode()).hexdigest()[:16]}"
+    return process_name
 
 def sanitize_command(command: str) -> str:
     """Sanitizza comando"""
-    return DataSanitizer.sanitize_text(command)
+    if not command:
+        return ""
+    sanitized = DataSanitizer.sanitize_text(command)
+    tokens = command.split()
+    output = []
+    for token in tokens:
+        if token.startswith("/home/") or token.startswith("/Users/"):
+            output.append(f"/sanitized/user_{hashlib.sha256(token.encode()).hexdigest()[:8]}")
+        elif "@" in token and DataSanitizer._is_private_ip(token.split("@")[-1]):
+            user, ip = token.split("@", 1)
+            output.append(f"{sanitize_username(user)}@{sanitize_ip(ip)}")
+        elif DataSanitizer._is_private_ip(token):
+            output.append(sanitize_ip(token))
+        else:
+            output.append(token.replace("alice", "user_redacted").replace("john", "user_redacted"))
+    return DataSanitizer.sanitize_text(" ".join(output))
 
 def sanitize_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
     """Sanitizza metriche di sistema"""
-    sanitized = metrics.copy()
-    # Sanitizza qualsiasi indirizzo IP nelle metriche
-    for key, value in sanitized.items():
-        if isinstance(value, str) and DataSanitizer._is_private_ip(value):
-            sanitized[key] = sanitize_ip(value)
-    return sanitized
+    def _sanitize(value):
+        if isinstance(value, dict):
+            return {k: _sanitize(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_sanitize(v) for v in value]
+        if isinstance(value, str):
+            if DataSanitizer._is_private_ip(value):
+                return sanitize_ip(value)
+            if DataSanitizer.SENSITIVE_PATTERNS["ipv4_private"].search(value):
+                return DataSanitizer.SENSITIVE_PATTERNS["ipv4_private"].sub(
+                    lambda m: sanitize_ip(m.group(0)), value
+                )
+            lower_val = value.lower()
+            if "/home/" in value or "/users/" in lower_val:
+                return sanitize_path(value)
+            if lower_val in {"alice", "john"}:
+                return sanitize_username(value)
+            return value
+        return value
+
+    return _sanitize(metrics.copy())
 
 # ============================================
 # TESTING

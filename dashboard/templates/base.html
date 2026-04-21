@@ -24,7 +24,7 @@
 </head>
 <body>
     <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark soc-navbar shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
                 {% if url_for('static', filename='images/logo.png') %}
@@ -65,6 +65,9 @@
                         <i class="bi bi-search"></i>
                     </button>
                 </form>
+                <span class="badge rounded-pill bg-success ms-3">
+                    <i class="bi bi-shield-check"></i> SOC Online
+                </span>
             </div>
         </div>
     </nav>

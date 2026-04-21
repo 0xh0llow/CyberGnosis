@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import logging
 import os
+from sqlalchemy import text
 
 # Import moduli locali
 from central_server.db.database import SessionLocal, engine, Base
@@ -77,7 +78,12 @@ class CodeSnippetRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
-    collection: str = Field(..., description="alerts, code_snippets, knowledge")
+    collection: str = Field("alerts", description="alerts, code_snippets, knowledge")
+
+
+class AlertStatusUpdateRequest(BaseModel):
+    status: str = Field(..., description="open, investigating, resolved, false_positive")
+    resolution_notes: Optional[str] = None
 
 # ============================================
 # DEPENDENCY: Database Session
@@ -107,7 +113,23 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    db_status = "connected"
+    vector_status = "connected"
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception:
+        db_status = "error"
+    if vector_engine.client is None:
+        vector_status = "not_initialized"
+
+    return {
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": db_status,
+        "vector_db": vector_status
+    }
 
 @app.post("/api/metrics")
 async def receive_metrics(
@@ -129,6 +151,7 @@ async def receive_metrics(
     
     try:
         # Salva metriche in DB
+        crud.register_host(db, host_id=request.host_id)
         metric_entry = crud.create_metric(
             db,
             host_id=request.host_id,
@@ -166,6 +189,7 @@ async def receive_alert(
     
     try:
         # Salva alert in DB
+        crud.register_host(db, host_id=request.host_id)
         alert_entry = crud.create_alert(
             db,
             host_id=request.host_id,
@@ -218,6 +242,7 @@ async def receive_code_snippet(
     
     try:
         # Salva snippet in DB
+        crud.register_host(db, host_id=request.host_id)
         snippet_entry = crud.create_code_snippet(
             db,
             host_id=request.host_id,
@@ -307,7 +332,9 @@ async def search_similar_code(
 async def get_alerts(
     authorization: str = Header(...),
     host_id: Optional[str] = None,
+    alert_type: Optional[str] = None,
     severity: Optional[str] = None,
+    status: Optional[str] = None,
     limit: int = 100,
     db = Depends(get_db)
 ):
@@ -321,7 +348,9 @@ async def get_alerts(
         alerts = crud.get_alerts(
             db,
             host_id=host_id,
+            alert_type=alert_type,
             severity=severity,
+            status=status,
             limit=limit
         )
         
@@ -330,6 +359,106 @@ async def get_alerts(
     except Exception as e:
         logger.error(f"Error fetching alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/{alert_id}")
+async def get_alert_by_id(
+    alert_id: int,
+    authorization: str = Header(...),
+    db=Depends(get_db)
+):
+    """Ottiene dettaglio singolo alert."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    alert = crud.get_alert_by_id(db, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
+
+
+@app.patch("/api/alerts/{alert_id}")
+async def patch_alert_status(
+    alert_id: int,
+    request: AlertStatusUpdateRequest,
+    authorization: str = Header(...),
+    db=Depends(get_db)
+):
+    """Aggiorna stato alert."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    alert = crud.update_alert_status(db, alert_id, request.status)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"status": "success", "alert_id": alert.id, "new_status": alert.status}
+
+
+@app.get("/api/metrics")
+async def get_metrics(
+    authorization: str = Header(...),
+    host_id: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    limit: int = 100,
+    db=Depends(get_db)
+):
+    """Ottiene metriche con filtri opzionali."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    metrics = crud.get_metrics(
+        db,
+        host_id=host_id,
+        limit=limit,
+        start_time=start_time,
+        end_time=end_time
+    )
+    return [
+        {
+            "id": metric.id,
+            "host_id": metric.host_id,
+            "timestamp": metric.timestamp.isoformat(),
+            "metrics": metric.metrics
+        }
+        for metric in metrics
+    ]
+
+
+@app.get("/api/hosts")
+async def get_hosts(
+    authorization: str = Header(...),
+    host_id: Optional[str] = None,
+    db=Depends(get_db)
+):
+    """Lista host monitorati."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    return crud.get_hosts(db, host_id=host_id)
+
+
+@app.get("/api/code-snippets")
+async def get_code_snippets(
+    authorization: str = Header(...),
+    host_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 100,
+    db=Depends(get_db)
+):
+    """Lista snippet di codice rilevati."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    snippets = crud.get_code_snippets(db, host_id=host_id, severity=severity, limit=limit)
+    return {"count": len(snippets), "snippets": snippets}
+
+
+@app.post("/api/search/knowledge")
+async def search_knowledge_base(
+    request: SearchRequest,
+    authorization: str = Header(...),
+):
+    """Ricerca semantica nella knowledge base."""
+    if not verify_api_token(authorization):
+        raise HTTPException(status_code=401, detail="Invalid API token")
+    results = vector_engine.search_knowledge(query=request.query, top_k=request.top_k)
+    return {"results": results}
 
 @app.get("/api/stats")
 async def get_statistics(

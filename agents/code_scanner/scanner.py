@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -269,35 +270,42 @@ if __name__ == "__main__":
     parser.add_argument('--server-url', help='Central server URL (optional)')
     parser.add_argument('--api-token', help='API token (required if server-url provided)')
     parser.add_argument('--host-id', help='Host identifier')
+    parser.add_argument('--interval', type=int, default=0, help='Run continuously every N seconds (0 = single run)')
     
     args = parser.parse_args()
     
     # Inizializza scanner
     scanner = CodeScanner()
-    
-    # Scansiona codebase
-    results = scanner.scan_codebase(args.target)
-    
-    # Mostra risultati
-    print(f"\n{'='*60}")
-    print(f"Code Scan Results")
-    print(f"{'='*60}")
-    print(f"Total Issues: {results['total_issues']}")
-    print(f"Severity Distribution:")
-    for severity, count in results['severity_counts'].items():
-        if count > 0:
-            print(f"  {severity.capitalize()}: {count}")
-    
-    # Invia al server se configurato
-    if args.server_url and args.api_token:
-        sender = SecureAPISender(
-            server_url=args.server_url,
-            api_token=args.api_token,
-            verify_ssl=False
-        )
-        
-        scanner.send_issues_to_server(
-            results['issues'],
-            sender,
-            host_id=args.host_id or 'unknown'
-        )
+
+    def run_once():
+        results = scanner.scan_codebase(args.target)
+
+        print(f"\n{'='*60}")
+        print("Code Scan Results")
+        print(f"{'='*60}")
+        print(f"Total Issues: {results['total_issues']}")
+        print("Severity Distribution:")
+        for severity, count in results['severity_counts'].items():
+            if count > 0:
+                print(f"  {severity.capitalize()}: {count}")
+
+        if args.server_url and args.api_token:
+            sender = SecureAPISender(
+                server_url=args.server_url,
+                api_token=args.api_token,
+                verify_ssl=False
+            )
+
+            scanner.send_issues_to_server(
+                results['issues'],
+                sender,
+                host_id=args.host_id or 'unknown'
+            )
+
+    if args.interval and args.interval > 0:
+        logger.info(f"Starting continuous scan mode (interval={args.interval}s)")
+        while True:
+            run_once()
+            time.sleep(args.interval)
+    else:
+        run_once()
