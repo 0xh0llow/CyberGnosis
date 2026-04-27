@@ -13,10 +13,20 @@ echo "Verifica prerequisiti..."
 
 command -v python3 >/dev/null 2>&1 || { echo "❌ Python3 richiesto"; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo "❌ Docker richiesto"; exit 1; }
-command -v docker-compose >/dev/null 2>&1 || { echo "❌ Docker Compose richiesto"; exit 1; }
+
+if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+else
+    echo "❌ Docker Compose richiesto"
+    exit 1
+fi
 
 echo "✓ Prerequisiti OK"
 echo ""
+
+SAFE_COMPOSE_CMD="./scripts/compose.sh"
 
 # Generate secrets
 echo "Generazione secrets..."
@@ -188,8 +198,8 @@ echo "⚠️  NON committare .env su Git!"
 echo ""
 echo "📚 Prossimi passi:"
 echo "  1. Rivedi configurazione in .env"
-echo "  2. (Server) docker compose -f docker-compose.server.yml --env-file .env.server up -d --build"
-echo "  3. (Client) docker compose -f docker-compose.client.yml --env-file .env.client up -d"
+echo "  2. (Server) ${SAFE_COMPOSE_CMD} -f docker-compose.server.yml --env-file .env.server up -d --build"
+echo "  3. (Client) ${SAFE_COMPOSE_CMD} -f docker-compose.client.yml --env-file .env.client up -d"
 echo "  4. Verifica: curl http://${SERVER_IP}:${SERVER_API_PORT}/health"
 echo "  5. Dashboard: https://${SERVER_IP}:${SERVER_DASHBOARD_HTTPS_PORT}"
 echo ""

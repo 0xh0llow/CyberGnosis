@@ -7,8 +7,8 @@
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY client_portal/package.json client_portal/package-lock.json* ./
-RUN npm ci --legacy-peer-deps
+COPY client_portal/package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
 
 # Stage 2: builder
 FROM node:20-alpine AS builder

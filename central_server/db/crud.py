@@ -11,6 +11,77 @@ from datetime import datetime
 from . import models
 
 
+def _parse_timestamp(timestamp: str) -> datetime:
+    """Converte ISO string in datetime compatibile con SQLAlchemy."""
+    return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+
+
+def _to_iso(value: Optional[datetime]) -> Optional[str]:
+    """Serializza datetime in ISO string, se presente."""
+    return value.isoformat() if value else None
+
+
+def serialize_alert(alert: models.Alert) -> Dict[str, Any]:
+    """Serializza un alert in forma API-friendly."""
+    return {
+        "id": alert.id,
+        "host_id": alert.host_id,
+        "alert_type": alert.alert_type,
+        "severity": alert.severity,
+        "title": alert.title,
+        "description": alert.description,
+        "metadata": alert.alert_metadata or {},
+        "status": alert.status,
+        "timestamp": _to_iso(alert.timestamp),
+        "created_at": _to_iso(alert.created_at),
+        "updated_at": _to_iso(alert.updated_at),
+    }
+
+
+def serialize_ticket(ticket: models.Ticket) -> Dict[str, Any]:
+    """Serializza un ticket per le API del portale."""
+    return {
+        "id": ticket.id,
+        "title": ticket.title,
+        "description": ticket.description,
+        "customer_name": ticket.customer_name,
+        "customer_email": ticket.customer_email,
+        "status": ticket.status,
+        "priority": ticket.priority,
+        "host_id": ticket.host_id,
+        "alert_id": ticket.alert_id,
+        "support_response": ticket.support_response,
+        "internal_notes": ticket.internal_notes,
+        "created_at": _to_iso(ticket.created_at),
+        "updated_at": _to_iso(ticket.updated_at),
+        "closed_at": _to_iso(ticket.closed_at),
+    }
+
+
+def serialize_host(host: models.Host) -> Dict[str, Any]:
+    """Serializza host monitorati per il frontend."""
+    return {
+        "id": host.id,
+        "host_id": host.host_id,
+        "hostname": host.hostname,
+        "os_info": host.os_info,
+        "is_active": host.is_active,
+        "last_seen": _to_iso(host.last_seen),
+        "registered_at": _to_iso(host.registered_at),
+    }
+
+
+def serialize_telegram_config(config: models.TelegramConfig) -> Dict[str, Any]:
+    """Serializza configurazione Telegram."""
+    return {
+        "id": config.id,
+        "chat_id": config.chat_id,
+        "is_active": config.is_active,
+        "created_at": _to_iso(config.created_at),
+        "updated_at": _to_iso(config.updated_at),
+    }
+
+
 # ============================================
 # METRICS
 # ============================================
@@ -24,7 +95,7 @@ def create_metric(
     """Crea entry metrica."""
     db_metric = models.Metric(
         host_id=host_id,
-        timestamp=datetime.fromisoformat(timestamp.replace('Z', '+00:00')),
+        timestamp=_parse_timestamp(timestamp),
         metrics=metrics
     )
     db.add(db_metric)
@@ -80,7 +151,7 @@ def create_alert(
         title=title,
         description=description,
         alert_metadata=metadata,
-        timestamp=datetime.fromisoformat(timestamp.replace('Z', '+00:00')),
+        timestamp=_parse_timestamp(timestamp),
         status='open'
     )
     db.add(db_alert)
@@ -115,20 +186,7 @@ def get_alerts(
     alerts = query.order_by(models.Alert.timestamp.desc()).limit(limit).all()
     
     # Convert to dict
-    return [
-        {
-            "id": alert.id,
-            "host_id": alert.host_id,
-            "alert_type": alert.alert_type,
-            "severity": alert.severity,
-            "title": alert.title,
-            "description": alert.description,
-            "metadata": alert.alert_metadata or {},
-            "status": alert.status,
-            "timestamp": alert.timestamp.isoformat()
-        }
-        for alert in alerts
-    ]
+    return [serialize_alert(alert) for alert in alerts]
 
 
 def get_alert_by_id(db: Session, alert_id: int) -> Optional[Dict[str, Any]]:
@@ -136,17 +194,7 @@ def get_alert_by_id(db: Session, alert_id: int) -> Optional[Dict[str, Any]]:
     alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
     if not alert:
         return None
-    return {
-        "id": alert.id,
-        "host_id": alert.host_id,
-        "alert_type": alert.alert_type,
-        "severity": alert.severity,
-        "title": alert.title,
-        "description": alert.description,
-        "metadata": alert.alert_metadata or {},
-        "status": alert.status,
-        "timestamp": alert.timestamp.isoformat(),
-    }
+    return serialize_alert(alert)
 
 
 def update_alert_status(
@@ -187,7 +235,7 @@ def create_code_snippet(
         severity=severity,
         file_path_hash=file_path_hash,
         line_number=line_number,
-        timestamp=datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        timestamp=_parse_timestamp(timestamp)
     )
     db.add(db_snippet)
     db.commit()
@@ -263,24 +311,142 @@ def get_active_hosts(db: Session) -> List[models.Host]:
     return db.query(models.Host).filter(models.Host.is_active == True).all()
 
 
+def get_latest_host(db: Session) -> Optional[models.Host]:
+    """Ottiene l'host visto piu' recentemente."""
+    return db.query(models.Host).order_by(models.Host.last_seen.desc().nullslast()).first()
+
+
 def get_hosts(db: Session, host_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Ottiene host attivi o specifico host."""
     query = db.query(models.Host)
     if host_id:
         query = query.filter(models.Host.host_id == host_id)
     hosts = query.order_by(models.Host.last_seen.desc().nullslast()).all()
-    return [
-        {
-            "id": host.id,
-            "host_id": host.host_id,
-            "hostname": host.hostname,
-            "os_info": host.os_info,
-            "is_active": host.is_active,
-            "last_seen": host.last_seen.isoformat() if host.last_seen else None,
-            "registered_at": host.registered_at.isoformat() if host.registered_at else None,
-        }
-        for host in hosts
-    ]
+    return [serialize_host(host) for host in hosts]
+
+
+# ============================================
+# TICKETS
+# ============================================
+
+def create_ticket(
+    db: Session,
+    title: str,
+    description: str,
+    priority: str = "medium",
+    status: str = "open",
+    host_id: Optional[str] = None,
+    alert_id: Optional[int] = None,
+    customer_name: Optional[str] = None,
+    customer_email: Optional[str] = None,
+) -> models.Ticket:
+    """Crea un nuovo ticket di supporto."""
+    db_ticket = models.Ticket(
+        title=title,
+        description=description,
+        priority=priority,
+        status=status,
+        host_id=host_id,
+        alert_id=alert_id,
+        customer_name=customer_name,
+        customer_email=customer_email,
+    )
+    db.add(db_ticket)
+    db.commit()
+    db.refresh(db_ticket)
+    return db_ticket
+
+
+def get_tickets(
+    db: Session,
+    status: Optional[str] = None,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Lista ticket con filtro opzionale per stato."""
+    query = db.query(models.Ticket)
+    if status:
+        query = query.filter(models.Ticket.status == status)
+    tickets = query.order_by(models.Ticket.created_at.desc()).limit(limit).all()
+    return [serialize_ticket(ticket) for ticket in tickets]
+
+
+def get_ticket_by_id(db: Session, ticket_id: int) -> Optional[Dict[str, Any]]:
+    """Ottiene un ticket per ID."""
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        return None
+    return serialize_ticket(ticket)
+
+
+def update_ticket(
+    db: Session,
+    ticket_id: int,
+    updates: Dict[str, Any],
+) -> Optional[models.Ticket]:
+    """Aggiorna campi editabili di un ticket."""
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        return None
+
+    for field in (
+        "title",
+        "description",
+        "status",
+        "priority",
+        "host_id",
+        "alert_id",
+        "customer_name",
+        "customer_email",
+        "support_response",
+        "internal_notes",
+    ):
+        if field in updates:
+            setattr(ticket, field, updates[field])
+
+    if "status" in updates:
+        ticket.closed_at = datetime.utcnow() if updates["status"] == "closed" else None
+
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
+# ============================================
+# NOTIFICATIONS
+# ============================================
+
+def upsert_telegram_config(db: Session, chat_id: str) -> models.TelegramConfig:
+    """Crea o riattiva la configurazione Telegram per il portale."""
+    config = db.query(models.TelegramConfig).filter(models.TelegramConfig.chat_id == chat_id).first()
+
+    if config:
+        config.is_active = True
+    else:
+        config = models.TelegramConfig(chat_id=chat_id, is_active=True)
+        db.add(config)
+
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+def get_telegram_configs(db: Session, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Lista le configurazioni Telegram salvate."""
+    query = db.query(models.TelegramConfig)
+    if active_only:
+        query = query.filter(models.TelegramConfig.is_active == True)
+    configs = query.order_by(models.TelegramConfig.created_at.desc()).all()
+    return [serialize_telegram_config(config) for config in configs]
+
+
+def get_active_telegram_chat_ids(db: Session) -> List[str]:
+    """Restituisce i chat_id Telegram attivi."""
+    rows = (
+        db.query(models.TelegramConfig.chat_id)
+        .filter(models.TelegramConfig.is_active == True)
+        .all()
+    )
+    return [chat_id for (chat_id,) in rows]
 
 
 # ============================================
@@ -292,6 +458,9 @@ def get_system_stats(db: Session) -> Dict[str, Any]:
     total_metrics = db.query(models.Metric).count()
     total_alerts = db.query(models.Alert).count()
     open_alerts = db.query(models.Alert).filter(models.Alert.status == 'open').count()
+    total_hosts = db.query(models.Host).count()
+    total_tickets = db.query(models.Ticket).count()
+    open_tickets = db.query(models.Ticket).filter(models.Ticket.status != 'closed').count()
     
     # Alert per severità
     critical_alerts = db.query(models.Alert).filter(models.Alert.severity == 'critical').count()
@@ -304,9 +473,17 @@ def get_system_stats(db: Session) -> Dict[str, Any]:
         "total_metrics": total_metrics,
         "total_alerts": total_alerts,
         "open_alerts": open_alerts,
+        "total_hosts": total_hosts,
+        "total_tickets": total_tickets,
+        "open_tickets": open_tickets,
         "critical_alerts": critical_alerts,
         "high_alerts": high_alerts,
         "active_hosts": active_hosts,
+        "tickets_by_status": {
+            "open": db.query(models.Ticket).filter(models.Ticket.status == 'open').count(),
+            "in_progress": db.query(models.Ticket).filter(models.Ticket.status == 'in_progress').count(),
+            "closed": db.query(models.Ticket).filter(models.Ticket.status == 'closed').count(),
+        },
         "alerts_by_severity": {
             "critical": critical_alerts,
             "high": high_alerts,

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket #{{ ticket.id }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('tickets_list') }}">Tickets</a></li>
+                <li class="breadcrumb-item active">#{{ ticket.id }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center">
+            <h2><i class="bi bi-ticket-detailed"></i> Ticket #{{ ticket.id }}</h2>
+            <span class="badge bg-{{ 'success' if ticket.status == 'closed' else 'warning' if ticket.status == 'open' else 'info' }}">
+                {{ ticket.status }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Richiesta cliente</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Titolo:</strong> {{ ticket.title }}</p>
+                <p><strong>Cliente:</strong> {{ ticket.customer_name or 'n/d' }}</p>
+                <p><strong>Email:</strong> {{ ticket.customer_email or 'n/d' }}</p>
+                <p><strong>Host:</strong> {{ ticket.host_id or 'n/d' }}</p>
+                <p><strong>Alert collegato:</strong> {{ ticket.alert_id or 'n/d' }}</p>
+                <p><strong>Creato il:</strong> {{ format_timestamp(ticket.created_at) }}</p>
+                <p><strong>Ultimo update:</strong> {{ format_timestamp(ticket.updated_at or ticket.created_at) }}</p>
+                <hr>
+                <p class="mb-0">{{ ticket.description }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Risposta visibile al cliente</h5>
+            </div>
+            <div class="card-body">
+                {% if ticket.support_response %}
+                <div class="alert alert-info mb-0">{{ ticket.support_response }}</div>
+                {% else %}
+                <p class="text-muted mb-0">Nessuna risposta inviata al cliente.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Lavora il ticket</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('update_ticket', ticket_id=ticket.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>open</option>
+                            <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>in_progress</option>
+                            <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>closed</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>low</option>
+                            <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>medium</option>
+                            <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>high</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Risposta supporto</label>
+                        <textarea name="support_response" class="form-control" rows="6" placeholder="Scrivi qui la risposta che il cliente vedrà...">{{ ticket.support_response or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Note interne</label>
+                        <textarea name="internal_notes" class="form-control" rows="5" placeholder="Note solo per il team interno...">{{ ticket.internal_notes or '' }}</textarea>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Salva aggiornamento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

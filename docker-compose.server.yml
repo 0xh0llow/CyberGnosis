@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -15,7 +13,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securityuser}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securityuser} -d ${POSTGRES_DB:-security_monitoring}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,9 +75,28 @@ services:
       API_TOKEN: ${API_TOKEN:?set API_TOKEN}
       NEXT_PUBLIC_APP_NAME: CyberGnosis
     depends_on:
-      - central_server
+      central_server:
+        condition: service_healthy
     ports:
       - "${PORTAL_PORT:-3000}:3000"
+    restart: unless-stopped
+    networks:
+      - soc_net
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: soc-admin-dashboard
+    environment:
+      CENTRAL_SERVER_URL: http://central_server:8000
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-changeme_dashboard_secret}
+    depends_on:
+      central_server:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_HTTP_PORT:-8081}:80"
     restart: unless-stopped
     networks:
       - soc_net

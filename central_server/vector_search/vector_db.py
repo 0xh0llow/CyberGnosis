@@ -11,6 +11,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from sentence_transformers import SentenceTransformer
 import os
+from threading import Lock
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +46,32 @@ class VectorSearchEngine:
         self.client: Optional[chromadb.HttpClient] = None
         
         # Embedding model
-        logger.info(f"Loading embedding model: {self.embedding_model_name}")
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
-        logger.info("✓ Embedding model loaded")
+        self.embedding_model = None
+        self._embedding_lock = Lock()
         
         # Collections
         self.alerts_collection = None
         self.snippets_collection = None
         self.knowledge_collection = None
+
+    def _ensure_embedding_model(self) -> bool:
+        """Carica il modello embeddings solo quando serve davvero."""
+        if self.embedding_model is not None:
+            return True
+
+        with self._embedding_lock:
+            if self.embedding_model is not None:
+                return True
+
+            try:
+                logger.info(f"Loading embedding model: {self.embedding_model_name}")
+                self.embedding_model = SentenceTransformer(self.embedding_model_name)
+                logger.info("✓ Embedding model loaded")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to load embedding model {self.embedding_model_name}: {e}")
+                self.embedding_model = None
+                return False
     
     def initialize(self):
         """Inizializza connessione Chroma e collezioni."""
@@ -99,6 +118,9 @@ class VectorSearchEngine:
         Returns:
             Lista float (embedding vector)
         """
+        if not self._ensure_embedding_model():
+            raise RuntimeError("Embedding model unavailable")
+
         embedding = self.embedding_model.encode(text, convert_to_numpy=True)
         return embedding.tolist()
     
