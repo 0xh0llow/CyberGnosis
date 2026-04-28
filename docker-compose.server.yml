@@ -58,6 +58,12 @@ services:
         condition: service_healthy
       chroma:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
     volumes:
       - ./central_server:/app/central_server
       - server_logs:/app/logs
