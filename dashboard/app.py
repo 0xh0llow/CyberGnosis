@@ -41,6 +41,13 @@ def api_get(path: str, params=None, timeout: int = 10):
     return response.json()
 
 
+def api_patch(path: str, payload, timeout: int = 10):
+    """Centralized PATCH wrapper."""
+    response = session.patch(f'{API_URL}{path}', json=payload, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
 def _extract_alerts(payload):
     if isinstance(payload, dict) and 'alerts' in payload:
         return payload['alerts']
@@ -52,6 +59,11 @@ def normalize_alert_status(status: str) -> str:
     if status == "new":
         return "open"
     return status
+
+
+def normalize_ticket_status(status: str) -> str:
+    """Map UI statuses to backend statuses."""
+    return status if status in {"open", "in_progress", "closed"} else "open"
 
 
 def handle_api_error(f):
@@ -276,6 +288,49 @@ def search():
     }
     
     return render_template('search.html', query=query, results=results)
+
+
+@app.route('/tickets')
+@handle_api_error
+def tickets_list():
+    """Admin ticket queue."""
+    status = request.args.get('status')
+    params = {'limit': 200}
+    if status:
+        params['status'] = normalize_ticket_status(status)
+
+    tickets = api_get('/api/tickets', params=params)
+    stats = api_get('/api/stats')
+    return render_template(
+        'tickets.html',
+        tickets=tickets,
+        ticket_stats=stats.get('tickets_by_status', {}),
+        current_status=status,
+    )
+
+
+@app.route('/tickets/<int:ticket_id>')
+@handle_api_error
+def ticket_detail(ticket_id):
+    """Admin detail for a single ticket."""
+    ticket = api_get(f'/api/tickets/{ticket_id}')
+    return render_template('ticket_detail.html', ticket=ticket)
+
+
+@app.route('/tickets/<int:ticket_id>/update', methods=['POST'])
+@handle_api_error
+def update_ticket(ticket_id):
+    """Update ticket workflow and support response."""
+    payload = {
+        'status': normalize_ticket_status(request.form.get('status', 'open')),
+        'priority': request.form.get('priority', 'medium'),
+        'support_response': request.form.get('support_response') or None,
+        'internal_notes': request.form.get('internal_notes') or None,
+    }
+
+    api_patch(f'/api/tickets/{ticket_id}', payload)
+    flash(f"Ticket #{ticket_id} aggiornato correttamente.", "success")
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 
 @app.route('/reports')

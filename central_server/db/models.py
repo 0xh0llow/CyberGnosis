@@ -59,6 +59,33 @@ class Alert(Base):
     )
 
 
+class Ticket(Base):
+    """Ticket di supporto aperti dal portale cliente."""
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    customer_name = Column(String, nullable=True)
+    customer_email = Column(String, nullable=True)
+
+    status = Column(String, default='open', nullable=False, index=True)      # open, in_progress, closed
+    priority = Column(String, default='medium', nullable=False, index=True)  # low, medium, high
+
+    host_id = Column(String, nullable=True, index=True)
+    alert_id = Column(Integer, nullable=True, index=True)
+    support_response = Column(Text, nullable=True)
+    internal_notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    closed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('idx_ticket_status_priority', 'status', 'priority'),
+    )
+
+
 class CodeSnippet(Base):
     """Snippet di codice con vulnerabilità."""
     __tablename__ = "code_snippets"
@@ -111,3 +138,15 @@ class AuditLog(Base):
     user_agent = Column(String, nullable=True)
     
     timestamp = Column(DateTime, server_default=func.now(), index=True)
+
+
+class TelegramConfig(Base):
+    """Configurazione Telegram per notifiche lato portale."""
+    __tablename__ = "telegram_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String, unique=True, nullable=False, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

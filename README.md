@@ -19,6 +19,14 @@ Il progetto è strutturato come un **SOC distribuito**:
 
 ## 2. Stack Server (`docker-compose.server.yml`)
 
+Avvio consigliato:
+
+```bash
+./scripts/compose.sh -f docker-compose.server.yml --env-file .env.server up -d --build
+```
+
+`./scripts/compose.sh` forza `COMPOSE_BAKE=false` di default per evitare errori Buildx/Compose v2 come `failed to execute bake: read |0: file already closed`.
+
 ### Servizi principali
 
 - **postgres**
@@ -48,6 +56,12 @@ Il progetto è strutturato come un **SOC distribuito**:
 ---
 
 ## 3. Stack Client (`docker-compose.client.yml`)
+
+Avvio consigliato:
+
+```bash
+./scripts/compose.sh -f docker-compose.client.yml --env-file .env.client up -d
+```
 
 Ogni host può eseguire:
 

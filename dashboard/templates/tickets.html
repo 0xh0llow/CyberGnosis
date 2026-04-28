@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Tickets - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2><i class="bi bi-life-preserver"></i> Support Queue</h2>
+            <span class="badge text-bg-dark px-3 py-2">
+                Open: {{ ticket_stats.get('open', 0) }} |
+                In progress: {{ ticket_stats.get('in_progress', 0) }} |
+                Closed: {{ ticket_stats.get('closed', 0) }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Tutti</option>
+                    <option value="open" {% if current_status == 'open' %}selected{% endif %}>Open</option>
+                    <option value="in_progress" {% if current_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="closed" {% if current_status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel"></i> Filtra
+                </button>
+                <a href="{{ url_for('tickets_list') }}" class="btn btn-outline-secondary ms-2">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Ticket clienti ({{ tickets|length }})</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if tickets %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Cliente</th>
+                        <th>Titolo</th>
+                        <th>Aggiornato</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr>
+                        <td><code>#{{ ticket.id }}</code></td>
+                        <td><span class="badge bg-{{ 'success' if ticket.status == 'closed' else 'warning' if ticket.status == 'open' else 'info' }}">{{ ticket.status }}</span></td>
+                        <td><span class="badge bg-{{ 'danger' if ticket.priority == 'high' else 'warning' if ticket.priority == 'medium' else 'secondary' }}">{{ ticket.priority }}</span></td>
+                        <td>
+                            <strong>{{ ticket.customer_name or 'n/d' }}</strong><br>
+                            <small class="text-muted">{{ ticket.customer_email or 'email non fornita' }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ ticket.title }}</strong><br>
+                            <small class="text-muted">{{ ticket.description[:90] }}{% if ticket.description|length > 90 %}...{% endif %}</small>
+                        </td>
+                        <td>{{ format_timestamp(ticket.updated_at or ticket.created_at) }}</td>
+                        <td>
+                            <a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            Nessun ticket trovato con i filtri correnti.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
