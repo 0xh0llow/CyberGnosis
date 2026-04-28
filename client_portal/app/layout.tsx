@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Shield, Activity, BellRing, LifeBuoy, Radar } from 'lucide-react';
+import { Shield, Activity, BellRing, LifeBuoy, Radar, Server, AlertTriangle } from 'lucide-react';
 import { NavLink } from '@/components/nav-link';
 import './globals.css';
 
@@ -9,7 +9,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME ?? 'CyberGnosis';
 
 export const metadata: Metadata = {
   title: `${appName} Portal`,
-  description: 'Portale clienti CyberGnosis per aprire ticket e seguire le risposte del supporto.',
+  description: 'Portale clienti CyberGnosis per monitorare host, alert e aprire ticket di supporto.',
 };
 
 export default function RootLayout({
@@ -34,10 +34,12 @@ export default function RootLayout({
               </Link>
 
               <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 p-1.5 shadow-sm">
-                <NavLink href="/" label="Overview" icon={<Activity size={16} />} />
-                <NavLink href="/demo" label="Demo Lab" icon={<Radar size={16} />} />
-                <NavLink href="/tickets" label="Tickets" icon={<LifeBuoy size={16} />} />
-                <NavLink href="/settings" label="Telegram" icon={<BellRing size={16} />} />
+                <NavLink href="/"         label="Overview"  icon={<Activity size={16} />} />
+                <NavLink href="/clients"  label="Hosts"     icon={<Server size={16} />} />
+                <NavLink href="/alerts"   label="Alerts"    icon={<AlertTriangle size={16} />} />
+                <NavLink href="/demo"     label="Demo Lab"  icon={<Radar size={16} />} />
+                <NavLink href="/tickets"  label="Tickets"   icon={<LifeBuoy size={16} />} />
+                <NavLink href="/settings" label="Telegram"  icon={<BellRing size={16} />} />
               </nav>
             </div>
           </header>
